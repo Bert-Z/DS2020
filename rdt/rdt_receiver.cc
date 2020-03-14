@@ -38,7 +38,7 @@ static std::vector<PacketInfo> msg_vector;
 // message cursor
 // static int cursor;
 // expect sequence
-static int expected;
+static uint32_t expected;
 // buffer
 static PacketInfo buffer[WINDOW_SIZE];
 // valid check
