@@ -29,6 +29,10 @@
 #include "rdt_parameters.h"
 #include "rdt_check.h"
 
+#ifdef DEBUG
+#include <iostream>
+#endif
+
 // current message
 static message *cur_msg;
 // message size
@@ -37,7 +41,7 @@ static message *cur_msg;
 static std::vector<PacketInfo> msg_vector;
 // message cursor
 // static int cursor;
-// expect sequence
+// expected sequence
 static uint32_t expected;
 // buffer
 static PacketInfo buffer[WINDOW_SIZE];
@@ -53,6 +57,8 @@ void Receiver_Init()
     // msg_size = 0;
     // cursor = 0;
     expected = 0;
+    cur_msg = (message *)malloc(sizeof(message));
+    cur_msg->size = 0;
     memset(buffer, 0, WINDOW_SIZE * sizeof(PacketInfo));
     memset(valid, 0, WINDOW_SIZE);
     msg_vector.clear();
@@ -89,15 +95,25 @@ void Receiver_SendAck(uint32_t seq)
 void Receiver_FromLowerLayer(struct packet *pkt)
 {
     PacketInfo packetinfo;
-    memcpy(&packetinfo, pkt, RDT_PKTSIZE);
+    memcpy(&packetinfo, pkt->data, RDT_PKTSIZE);
 
     // verify checksum
     if (!RDT_VerifyChecksum(pkt))
         return;
 
+#ifdef DEBUG
+    std::cout << "recerver 1" << std::endl;
+    std::cout << packetinfo.seqnum << std::endl;
+    std::cout << (int)packetinfo.payload_size << std::endl;
+    std::cout << packetinfo.isend << std::endl;
+#endif
+
     if (packetinfo.seqnum > expected && packetinfo.seqnum < expected + WINDOW_SIZE)
     {
         int setnum = packetinfo.seqnum % WINDOW_SIZE;
+#ifdef DEBUG
+        std::cout << "recerver 2" << std::endl;
+#endif
         // store in buffer
         if (!valid[setnum])
         {
@@ -110,18 +126,32 @@ void Receiver_FromLowerLayer(struct packet *pkt)
     }
     else if (expected != packetinfo.seqnum)
     {
+
+#ifdef DEBUG
+        std::cout << "recerver 3" << std::endl;
+#endif
         Receiver_SendAck(expected - 1);
         return;
     }
+
+#ifdef DEBUG
+    std::cout << "recerver 8" << std::endl;
+#endif
 
     while (true)
     {
         expected++;
         msg_vector.push_back(packetinfo);
-        cur_msg->size += packetinfo.payload_size;
-
+        cur_msg->size += (int)packetinfo.payload_size;
+#ifdef DEBUG
+        std::cout << "recerver 4" << std::endl;
+#endif
         if (packetinfo.isend)
         {
+
+#ifdef DEBUG
+            std::cout << "recerver 5" << std::endl;
+#endif
             cur_msg->data = (char *)malloc(cur_msg->size);
             int cursor = 0;
             for (auto x : msg_vector)
@@ -135,12 +165,20 @@ void Receiver_FromLowerLayer(struct packet *pkt)
 
         if (valid[expected % WINDOW_SIZE])
         {
+
+#ifdef DEBUG
+            std::cout << "recerver 6" << std::endl;
+#endif
             packetinfo = buffer[expected % WINDOW_SIZE];
             valid[expected % WINDOW_SIZE] = 0;
         }
         else
             break;
     }
+
+#ifdef DEBUG
+    std::cout << "recerver 7" << std::endl;
+#endif
 
     Receiver_SendAck(packetinfo.seqnum);
 }

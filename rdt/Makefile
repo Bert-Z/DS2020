@@ -9,6 +9,10 @@ TARGETS = rdt_sim
 
 all: $(TARGETS)
 
+debug:	CCFLAGS += -D DEBUG
+debug:	LDFLAGS += -D DEBUG
+debug:	$(TARGETS)
+
 .cc.o:
 	g++ $(CCFLAGS) -c -o $@ $<
 

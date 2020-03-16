@@ -52,7 +52,7 @@ void RDT_AddChecksum(packet *pkt)
     ASSERT(pkt);
 
     uint32_t checksum = crc32(pkt->data + 4, RDT_PKTSIZE - CHECKSUM_SIZE);
-    memcpy(pkt->data, (char *)&checksum, CHECKSUM_SIZE);
+    memcpy(pkt->data, &checksum, CHECKSUM_SIZE);
 
     return;
 }
