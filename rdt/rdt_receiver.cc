@@ -8,9 +8,7 @@
  *
  *       |<-  4 byte -->|<-  4 byte  ->|<-             the rest            ->|
  *       |   check sum  |     ack      |<-             nothing             ->|
- *
- *       The first byte of each packet indicates the size of the payload
- *       (excluding this single-byte header)
+ * 
  */
 
 #include <stdio.h>
@@ -21,43 +19,47 @@
 #include "rdt_receiver.h"
 #include "rdt_check.h"
 
+// header size
 const int HEADER_SIZE = 9;
+// sliding window size
 const int WINDOWS_SIZE = 10;
+// max payload size
 const int MAX_PAYLOAD_SIZE = (RDT_PKTSIZE - HEADER_SIZE);
 
-//当前消息
-static message *cur_message;
-//当前message还未收到的数据的第一个byte的偏移量
-static int cursor_receiver;
+// current message
+static message *cur_msg;
+// cursor for the receiving message
+static int cursor;
 
-//应该收到的packet
-static int packet_expected;
-// Buffer
+// expected pkt sequence
+static int expected;
+// buffer
 static packet *buffer;
-// Buffer 有效位 (1为有效， 0为无效)
+// buffer check
 static char *valid_checks;
 
-static void send_ack(int ack)
+static void Receiver_Ack(int ack)
 {
-    packet ack_packet;
-    memcpy(ack_packet.data + CHECKSUM_SIZE, &ack, sizeof(int));
-    RDT_AddChecksum(&ack_packet);
+    packet pkt;
+    memcpy(pkt.data + CHECKSUM_SIZE, &ack, sizeof(int));
+    RDT_AddChecksum(&pkt);
 
-    Receiver_ToLowerLayer(&ack_packet);
+    Receiver_ToLowerLayer(&pkt);
 }
 
 /* receiver initialization, called once at the very beginning */
 void Receiver_Init()
 {
-    cur_message = (message *)malloc(sizeof(message));
-    memset(cur_message, 0, sizeof(message));
-    cursor_receiver = 0;
+    fprintf(stdout, "At %.2fs: receiver initializing ...\n", GetSimulationTime());
 
-    packet_expected = 0;
+    // initialization
+    cur_msg = (message *)malloc(sizeof(message));
+    memset(cur_msg, 0, sizeof(message));
+    cursor = 0;
+    expected = 0;
     buffer = (packet *)malloc(WINDOWS_SIZE * sizeof(packet));
     valid_checks = (char *)malloc(WINDOWS_SIZE);
     memset(valid_checks, 0, WINDOWS_SIZE);
-    fprintf(stdout, "At %.2fs: receiver initializing ...\n", GetSimulationTime());
 }
 
 /* receiver finalization, called once at the very end.
@@ -66,7 +68,7 @@ void Receiver_Init()
    memory you allocated in Receiver_init(). */
 void Receiver_Final()
 {
-    free(cur_message);
+    free(cur_msg);
     free(buffer);
     free(valid_checks);
     fprintf(stdout, "At %.2fs: receiver finalizing ...\n", GetSimulationTime());
@@ -81,62 +83,61 @@ void Receiver_FromLowerLayer(struct packet *pkt)
 
     int packet_seq = 0, payload_size = 0;
     memcpy(&packet_seq, pkt->data + CHECKSUM_SIZE, sizeof(int));
-    if (packet_seq > packet_expected && packet_seq < packet_expected + WINDOWS_SIZE)
+    if (packet_seq > expected && packet_seq < expected + WINDOWS_SIZE)
     {
-        //存入buffer
+        // store in the buffer
         if (!valid_checks[packet_seq % WINDOWS_SIZE])
         {
             memcpy(&(buffer[packet_seq % WINDOWS_SIZE].data), pkt->data, RDT_PKTSIZE);
             valid_checks[packet_seq % WINDOWS_SIZE] = 1;
         }
-        send_ack(packet_expected - 1);
+        Receiver_Ack(expected - 1);
         return;
     }
-    else if (packet_seq != packet_expected)
+    else if (packet_seq != expected)
     {
-        send_ack(packet_expected - 1);
+        Receiver_Ack(expected - 1);
         return;
     }
 
     while (true)
     {
-        packet_expected++;
+        expected++;
         payload_size = pkt->data[HEADER_SIZE - 1];
 
-        //第一个包
-        if (cursor_receiver == 0)
+        // message info package
+        if (cursor == 0)
         {
-            if (cur_message->size != 0)
-                free(cur_message->data);
-            memcpy(&cur_message->size, pkt->data + HEADER_SIZE, sizeof(int));
-            cur_message->data = (char *)malloc(cur_message->size);
-            memcpy(cur_message->data, pkt->data + HEADER_SIZE + sizeof(int), payload_size - sizeof(int));
-            cursor_receiver += payload_size - sizeof(int);
+            if (cur_msg->size != 0)
+                free(cur_msg->data);
+            memcpy(&cur_msg->size, pkt->data + HEADER_SIZE, sizeof(int));
+            cur_msg->data = (char *)malloc(cur_msg->size);
+            memcpy(cur_msg->data, pkt->data + HEADER_SIZE + sizeof(int), payload_size - sizeof(int));
+            cursor += payload_size - sizeof(int);
         }
         else
         {
-            memcpy(cur_message->data + cursor_receiver, pkt->data + HEADER_SIZE, payload_size);
-            cursor_receiver += payload_size;
+            memcpy(cur_msg->data + cursor, pkt->data + HEADER_SIZE, payload_size);
+            cursor += payload_size;
         }
 
-        if (cur_message->size == cursor_receiver)
+        if (cur_msg->size == cursor)
         {
-            Receiver_ToUpperLayer(cur_message);
-            cursor_receiver = 0;
+            Receiver_ToUpperLayer(cur_msg);
+            cursor = 0;
         }
 
-        //从buffer中检查是否有包
-        if (valid_checks[packet_expected % WINDOWS_SIZE])
+        // check some pkts received before by reording
+        if (valid_checks[expected % WINDOWS_SIZE])
         {
-            pkt = &buffer[packet_expected % WINDOWS_SIZE];
+            pkt = &buffer[expected % WINDOWS_SIZE];
             memcpy(&packet_seq, pkt->data + CHECKSUM_SIZE, sizeof(int));
-            valid_checks[packet_expected % WINDOWS_SIZE] = 0;
+            valid_checks[expected % WINDOWS_SIZE] = 0;
         }
         else
-        {
             break;
-        }
+        
     }
 
-    send_ack(packet_seq);
+    Receiver_Ack(packet_seq);
 }

@@ -10,12 +10,10 @@
  *   |  checksum   |  packet seq |  message seq | payload size |<-   payload    ->|
  *
  *
- *   The first packet of a new message:
+ *   Message infomation package:
  *   |<- 4 byte -> |<- 4 byte  ->|<-  1 byte  ->|<-  1 byte  ->|<-  4 byte  ->|<-  The rest   ->|
  *   |  checksum   |  packet seq |  message seq | payload size | message size |<-   payload   ->|
  *
- *       The first byte of each packet indicates the size of the payload
- *       (excluding this single-byte header)
  */
 
 #include <stdio.h>
@@ -26,94 +24,90 @@
 #include "rdt_sender.h"
 #include "rdt_check.h"
 
+// max message buffer size
 const int MAX_BUFFER_SIZE = 15000;
+// sliding window size
 const int MAX_WINDOW_SIZE = 10;
 const double TIMEOUT = 0.3;
-
 const int HEADER_SIZE = 9;
 const int MAX_PAYLOAD_SIZE = (RDT_PKTSIZE - HEADER_SIZE);
 
+// message buffer
 static message *buffer;
-//消息序号
+// message sequence
 static int next_message_seq;
-//当前buffer中message的数量
-static int nmessage;
-//当前还未完全发送完成的message在buffer中的位置
+// message number stored in buffer
+static int msg_buffer_num;
+// current message sequence
 static int cur_message_seq;
-//当前message还未进入windows的第一个byte的偏移量
+// cur msg cursor
 static int cursor_sender;
 
+// pkt sliding window
 static packet *windows;
-//包序号
-static int next_packet_seq;
-//下一次要发的包的序列
+// pkt squence
+static int pkt_seq;
+// next pkt seq
 static int next_packet_to_send;
-//应该收到的ack
+// expected ack
 static int ack_expected;
-//当前windows中packet的数目
-static int npacket;
+// pkt number stored in the window
+static int pkt_window_num;
 
-static void fill_windows()
+static void Sender_ConstructPKT()
 {
     message msg = buffer[cur_message_seq % MAX_BUFFER_SIZE];
 
-    //复用
     packet pkt;
 
-    while (npacket < MAX_WINDOW_SIZE && cur_message_seq < next_message_seq)
+    while (pkt_window_num < MAX_WINDOW_SIZE && cur_message_seq < next_message_seq)
     {
         if (msg.size - cursor_sender > MAX_PAYLOAD_SIZE)
         {
-            memcpy(pkt.data + CHECKSUM_SIZE, &next_packet_seq, sizeof(int));
-
+            memcpy(pkt.data + CHECKSUM_SIZE, &pkt_seq, sizeof(int));
             pkt.data[HEADER_SIZE - 1] = MAX_PAYLOAD_SIZE;
 
             memcpy(pkt.data + HEADER_SIZE, msg.data + cursor_sender, MAX_PAYLOAD_SIZE);
 
             RDT_AddChecksum(&pkt);
 
-            memcpy(&(windows[next_packet_seq % MAX_WINDOW_SIZE]), &pkt, sizeof(packet));
+            memcpy(&(windows[pkt_seq % MAX_WINDOW_SIZE]), &pkt, sizeof(packet));
 
             cursor_sender += MAX_PAYLOAD_SIZE;
-            next_packet_seq++;
-            npacket++;
+            pkt_seq++;
+            pkt_window_num++;
         }
         else if (msg.size > cursor_sender)
         {
-            memcpy(pkt.data + CHECKSUM_SIZE, &next_packet_seq, sizeof(int));
+            // last pkt of the cur msg
+            memcpy(pkt.data + CHECKSUM_SIZE, &pkt_seq, sizeof(int));
             pkt.data[HEADER_SIZE - 1] = msg.size - cursor_sender;
 
             memcpy(pkt.data + HEADER_SIZE, msg.data + cursor_sender, msg.size - cursor_sender);
 
             RDT_AddChecksum(&pkt);
 
-            memcpy(&(windows[next_packet_seq % MAX_WINDOW_SIZE]), &pkt, sizeof(packet));
+            memcpy(&(windows[pkt_seq % MAX_WINDOW_SIZE]), &pkt, sizeof(packet));
 
-            //已经将某个message全部发送并且放入窗口
-            nmessage--;
+            msg_buffer_num--;
             cur_message_seq++;
+
+            // if there are some msg have been buffered
             if (cur_message_seq < next_message_seq)
-            {
                 msg = buffer[cur_message_seq % MAX_BUFFER_SIZE];
-            }
 
             cursor_sender = 0;
-
-            next_packet_seq++;
-            npacket++;
+            pkt_seq++;
+            pkt_window_num++;
         }
     }
 }
 
-static void send_packets()
+static void Sender_SendPKT()
 {
-    //复用
-    packet pkt;
-
-    while (next_packet_to_send < next_packet_seq)
+    while (next_packet_to_send < pkt_seq)
     {
-        memcpy(&pkt, &(windows[next_packet_to_send % MAX_WINDOW_SIZE]), sizeof(packet));
-        Sender_ToLowerLayer(&pkt);
+        Sender_ToLowerLayer(&(windows[next_packet_to_send % MAX_WINDOW_SIZE]));
         next_packet_to_send++;
     }
 }
@@ -121,20 +115,20 @@ static void send_packets()
 /* sender initialization, called once at the very beginning */
 void Sender_Init()
 {
+    fprintf(stdout, "At %.2fs: sender initializing ...\n", GetSimulationTime());
+
+    // initialization
     buffer = (message *)malloc((MAX_BUFFER_SIZE) * sizeof(message));
     memset(buffer, 0, (MAX_BUFFER_SIZE) * sizeof(message));
     next_message_seq = 0;
-    nmessage = 0;
+    msg_buffer_num = 0;
     cur_message_seq = 0;
     cursor_sender = 0;
-
     windows = (packet *)malloc((MAX_WINDOW_SIZE) * sizeof(packet));
-    next_packet_seq = 0;
+    pkt_seq = 0;
     next_packet_to_send = 0;
     ack_expected = 0;
-    npacket = 0;
-
-    fprintf(stdout, "At %.2fs: sender initializing ...\n", GetSimulationTime());
+    pkt_window_num = 0;
 }
 
 /* sender finalization, called once at the very end.
@@ -157,29 +151,26 @@ void Sender_Final()
    sender */
 void Sender_FromUpperLayer(struct message *msg)
 {
-    //使用GO-BACK-N策略。
-    if (nmessage >= MAX_BUFFER_SIZE)
-    {
-        ASSERT(0);
-    }
-
+    // Go-Back N
     if (buffer[next_message_seq % MAX_BUFFER_SIZE].size != 0)
         free(buffer[next_message_seq % MAX_BUFFER_SIZE].data);
+
     buffer[next_message_seq % MAX_BUFFER_SIZE].size = msg->size + sizeof(int);
     buffer[next_message_seq % MAX_BUFFER_SIZE].data = (char *)malloc(msg->size + sizeof(int));
     memcpy(buffer[next_message_seq % MAX_BUFFER_SIZE].data, &msg->size, sizeof(int));
     memcpy(buffer[next_message_seq % MAX_BUFFER_SIZE].data + sizeof(int), msg->data, msg->size);
-    next_message_seq++;
-    nmessage++;
 
-    //还未超时
+    next_message_seq++;
+    msg_buffer_num++;
+
+    // Timer
     if (Sender_isTimerSet())
         return;
 
     Sender_StartTimer(TIMEOUT);
 
-    fill_windows();
-    send_packets();
+    Sender_ConstructPKT();
+    Sender_SendPKT();
 }
 
 /* event handler, called when a packet is passed from the lower layer at the
@@ -191,18 +182,18 @@ void Sender_FromLowerLayer(struct packet *pkt)
 
     int ack;
     memcpy(&ack, pkt->data + CHECKSUM_SIZE, sizeof(int));
-    //收到以前的ack
-    if (ack_expected <= ack && ack < next_packet_seq)
+
+    if (ack_expected <= ack && ack < pkt_seq)
     {
-        //收到某一个包的ack，向后移动窗口
+        // sliding window
         Sender_StartTimer(TIMEOUT);
-        npacket -= (ack - ack_expected + 1);
+        pkt_window_num -= (ack - ack_expected + 1);
         ack_expected = ack + 1;
-        fill_windows();
-        send_packets();
+        Sender_ConstructPKT();
+        Sender_SendPKT();
     }
 
-    if (ack == next_packet_seq - 1)
+    if (ack == pkt_seq - 1)
         Sender_StopTimer();
 }
 
@@ -211,6 +202,6 @@ void Sender_Timeout()
 {
     Sender_StartTimer(TIMEOUT);
     next_packet_to_send = ack_expected;
-    fill_windows();
-    send_packets();
+    Sender_ConstructPKT();
+    Sender_SendPKT();
 }
