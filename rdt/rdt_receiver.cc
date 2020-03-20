@@ -33,9 +33,9 @@ static int cursor;
 
 // expected pkt sequence
 static int expected;
-// buffer
-static packet *buffer;
-// buffer check
+// window
+static packet *window;
+// window check
 static char *valid_checks;
 
 static void Receiver_Ack(int ack)
@@ -57,7 +57,7 @@ void Receiver_Init()
     memset(cur_msg, 0, sizeof(message));
     cursor = 0;
     expected = 0;
-    buffer = (packet *)malloc(WINDOWS_SIZE * sizeof(packet));
+    window = (packet *)malloc(WINDOWS_SIZE * sizeof(packet));
     valid_checks = (char *)malloc(WINDOWS_SIZE);
     memset(valid_checks, 0, WINDOWS_SIZE);
 }
@@ -69,7 +69,7 @@ void Receiver_Init()
 void Receiver_Final()
 {
     free(cur_msg);
-    free(buffer);
+    free(window);
     free(valid_checks);
     fprintf(stdout, "At %.2fs: receiver finalizing ...\n", GetSimulationTime());
 }
@@ -85,10 +85,10 @@ void Receiver_FromLowerLayer(struct packet *pkt)
     memcpy(&packet_seq, pkt->data + CHECKSUM_SIZE, sizeof(int));
     if (packet_seq > expected && packet_seq < expected + WINDOWS_SIZE)
     {
-        // store in the buffer
+        // store in the window
         if (!valid_checks[packet_seq % WINDOWS_SIZE])
         {
-            memcpy(&(buffer[packet_seq % WINDOWS_SIZE].data), pkt->data, RDT_PKTSIZE);
+            memcpy(&(window[packet_seq % WINDOWS_SIZE].data), pkt->data, RDT_PKTSIZE);
             valid_checks[packet_seq % WINDOWS_SIZE] = 1;
         }
         Receiver_Ack(expected - 1);
@@ -130,7 +130,7 @@ void Receiver_FromLowerLayer(struct packet *pkt)
         // check some pkts received before by reording
         if (valid_checks[expected % WINDOWS_SIZE])
         {
-            pkt = &buffer[expected % WINDOWS_SIZE];
+            pkt = &window[expected % WINDOWS_SIZE];
             memcpy(&packet_seq, pkt->data + CHECKSUM_SIZE, sizeof(int));
             valid_checks[expected % WINDOWS_SIZE] = 0;
         }

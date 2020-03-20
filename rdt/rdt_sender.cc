@@ -25,7 +25,7 @@
 #include "rdt_check.h"
 
 // max message buffer size
-const int MAX_BUFFER_SIZE = 15000;
+const int MAX_BUFFER_SIZE = 1000;
 // sliding window size
 const int MAX_WINDOW_SIZE = 10;
 const double TIMEOUT = 0.3;
