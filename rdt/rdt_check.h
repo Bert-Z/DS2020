@@ -1,9 +1,11 @@
 #pragma once
 
-#include "rdt_parameters.h"
+#include <stdint.h>
 #include "rdt_struct.h"
 
 #include <string.h>
+
+const uint32_t CHECKSUM_SIZE = 4;
 
 uint32_t crc32(const char *buf, int size);
 
