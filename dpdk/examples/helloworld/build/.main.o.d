@@ -1,7 +1,8 @@
 dep_main.o = /home/ubuntu/DS2020/dpdk/examples/helloworld/main.c \
  /usr/include/stdc-predef.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_config.h /usr/include/stdio.h \
- /usr/include/features.h /usr/include/x86_64-linux-gnu/sys/cdefs.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_config.h \
+ /usr/include/stdio.h /usr/include/features.h \
+ /usr/include/x86_64-linux-gnu/sys/cdefs.h \
  /usr/include/x86_64-linux-gnu/bits/wordsize.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
@@ -26,10 +27,10 @@ dep_main.o = /home/ubuntu/DS2020/dpdk/examples/helloworld/main.c \
  /usr/include/x86_64-linux-gnu/asm/errno.h \
  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
  /usr/include/x86_64-linux-gnu/sys/queue.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_memory.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_config.h \
- /home/ubuntu/DS2020/dpdk/build/include/exec-env/rte_dom0_common.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_common.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_memory.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_config.h \
+ /home/ubuntu/DS2020/dpdk//build/include/exec-env/rte_dom0_common.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_common.h \
  /usr/include/x86_64-linux-gnu/bits/waitflags.h \
  /usr/include/x86_64-linux-gnu/bits/waitstatus.h \
  /usr/include/x86_64-linux-gnu/sys/types.h /usr/include/time.h \
@@ -53,13 +54,13 @@ dep_main.o = /home/ubuntu/DS2020/dpdk/examples/helloworld/main.c \
  /usr/lib/gcc/x86_64-linux-gnu/5/include/xmmintrin.h \
  /usr/lib/gcc/x86_64-linux-gnu/5/include/mmintrin.h \
  /usr/lib/gcc/x86_64-linux-gnu/5/include/mm_malloc.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_memzone.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_launch.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_eal.h /usr/include/sched.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_memzone.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_launch.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_eal.h /usr/include/sched.h \
  /usr/include/x86_64-linux-gnu/bits/sched.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_per_lcore.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_per_lcore.h \
  /usr/include/pthread.h /usr/include/x86_64-linux-gnu/bits/setjmp.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_lcore.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_debug.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_log.h \
- /home/ubuntu/DS2020/dpdk/build/include/rte_branch_prediction.h
+ /home/ubuntu/DS2020/dpdk//build/include/rte_lcore.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_debug.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_log.h \
+ /home/ubuntu/DS2020/dpdk//build/include/rte_branch_prediction.h
