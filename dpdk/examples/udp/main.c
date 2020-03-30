@@ -224,7 +224,7 @@ static void send_pkt(void)
 	// const uint8_t nb_ports = rte_eth_dev_count();
 	uint8_t sportid = 0;
 
-	struct rte_mbuf *udp_pkt = construct_pkt(sportid, "hello world", 12, IPv4(10, 114, 0, 10), 15, IPv4(10, 222, 0, 21), 15);
+	struct rte_mbuf *udp_pkt = construct_pkt(sportid, "hello world", 12, IPv4(10, 115, 0, 24), 15, IPv4(10, 222, 0, 21), 15);
 
 	/* Send burst of TX packets, to second port of pair. */
 	const uint16_t nb_tx = rte_eth_tx_burst(sportid, 0, &udp_pkt, 1);
