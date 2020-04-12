@@ -5,9 +5,7 @@
 
 #include "qos.h"
 
-// We need fraction
 const double NANO_PERSEC = 1000000000.0;
-
 static struct rte_meter_srtcm_params app_srtcm_params[APP_FLOWS_MAX] = {
     {.cir = 160000000, .cbs = 10000 * 40, .ebs = 10000 * 48}, // Flow0
     {.cir = 80000000, .cbs = 10000 * 7, .ebs = 10000 * 36},   // Flow1
@@ -16,11 +14,8 @@ static struct rte_meter_srtcm_params app_srtcm_params[APP_FLOWS_MAX] = {
 };
 
 static struct rte_meter_srtcm app_flows[APP_FLOWS_MAX];
-
-// The time passed to rte_meter should be counted from rte_meter config
 static uint64_t start_times[APP_FLOWS_MAX];
-
-static uint64_t cpu_hz;
+static uint64_t hz;
 
 /**
  * This function will be called only once at the beginning of the test. 
@@ -43,9 +38,7 @@ int qos_meter_init(void)
     uint32_t i;
     int ret;
 
-    // Log the hz of current cpu
-    cpu_hz = rte_get_tsc_hz();
-    printf("QoS Meter: hz = %lu\n", cpu_hz);
+    hz = rte_get_tsc_hz();
 
     for (i = 0; i < APP_FLOWS_MAX; i++)
     {
@@ -80,7 +73,7 @@ int qos_meter_init(void)
 enum qos_color
 qos_meter_run(uint32_t flow_id, uint32_t pkt_len, uint64_t time)
 {
-    uint64_t ctime = start_times[flow_id] + (uint64_t)(time / NANO_PERSEC * cpu_hz);
+    uint64_t ctime = start_times[flow_id] + (uint64_t)(time / NANO_PERSEC * hz);
     return (enum qos_color)rte_meter_srtcm_color_blind_check(&app_flows[flow_id], ctime, pkt_len);
 }
 
@@ -111,15 +104,9 @@ static struct rte_red_params app_red_params[APP_FLOWS_MAX][e_RTE_METER_COLORS] =
     }};
 
 static struct rte_red_config app_red_configs[APP_FLOWS_MAX][e_RTE_METER_COLORS];
-
-// Run-time data
 static struct rte_red app_reds[APP_FLOWS_MAX][e_RTE_METER_COLORS];
-
-// Queue size in packets
 unsigned queues[APP_FLOWS_MAX];
-
-// Last time of burst
-uint64_t last_burst_time;
+uint64_t last_time;
 
 /**
  * This function will be called only once at the beginning of the test. 
@@ -141,22 +128,19 @@ int qos_dropper_init(void)
     {
         for (j = 0; j < e_RTE_METER_COLORS; j++)
         {
-            // Initialize red run-time data
             ret = rte_red_rt_data_init(&app_reds[i][j]);
             if (ret < 0)
                 return ret;
 
-            // Configure RED configuration
             ret = rte_red_config_init(&app_red_configs[i][j], app_red_params[i][j].wq_log2, app_red_params[i][j].min_th, app_red_params[i][j].max_th, app_red_params[i][j].maxp_inv);
             if (ret < 0)
                 return ret;
         }
 
-        // Initialize queue
         queues[i] = 0;
     }
 
-    last_burst_time = 0;
+    last_time = 0;
 
     return 0;
 }
@@ -181,19 +165,14 @@ int qos_dropper_init(void)
  */
 int qos_dropper_run(uint32_t flow_id, enum qos_color color, uint64_t time)
 {
-
-    // Send out all packets in queues
-    if (time != last_burst_time)
+    if (time != last_time)
     {
         for (int i = 0; i < APP_FLOWS_MAX; i++)
             queues[i] = 0;
-        last_burst_time = time;
+        last_time = time;
     }
 
-    // Actually the timestamp should be measured in bytes, however we could not get the timestamp in bytes in such an interface.
-    // So just pass cpu circles as timestamp
-
-    uint64_t ctime = start_times[flow_id] + (uint64_t)(time / NANO_PERSEC * cpu_hz);
+    uint64_t ctime = start_times[flow_id] + (uint64_t)(time / NANO_PERSEC * hz);
     if (rte_red_enqueue(&app_red_configs[flow_id][color], &app_reds[flow_id][color], queues[flow_id], ctime) == 0)
     {
         queues[flow_id]++;
